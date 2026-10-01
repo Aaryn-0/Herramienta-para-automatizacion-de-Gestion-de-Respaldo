@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oracle Backup Strategist | Control Preventivo RMAN</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="bg-slate-900 text-slate-100 font-sans min-h-screen flex flex-col antialiased">
+
+  <!-- TOP HEADER -->
+  <header class="bg-slate-800/90 backdrop-blur border-b border-slate-700/80 sticky top-0 z-40 px-6 py-3.5">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-amber-600 to-red-600 flex items-center justify-center shadow-lg shadow-red-900/30">
+          <i data-lucide="database" class="w-5 h-5 text-white"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-lg font-bold tracking-tight text-white">Oracle Backup Strategist</h1>
+            <span class="text-xs px-2 py-0.5 rounded font-mono font-bold bg-red-950 text-red-400 border border-red-800">RMAN v21c</span>
+          </div>
+          <p class="text-xs text-slate-400 font-medium">Control Preventivo de Disponibilidad e Integridad · UNA EIF402</p>
+        </div>
+      </div>
+
+      <!-- Quick Metrics Bar -->
+      <div class="flex items-center gap-3 text-xs">
+        <div id="localOracleBadge" class="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700 text-slate-300">
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+          <span>Instancia Local: <strong id="localOracleText" class="text-white">Detectando...</strong></span>
+        </div>
+
+        <!-- Health Score -->
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700">
+          <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i>
+          <span>Salud Preventiva: <strong id="healthScoreHeader" class="text-emerald-400 font-mono font-bold text-sm">--%</strong></span>
+        </div>
+
+        <!-- Scheduler Status -->
+        <div class="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-900/80 border border-slate-700">
+          <i data-lucide="clock" class="w-4 h-4 text-cyan-400"></i>
+          <span class="hidden md:inline">Planificador:</span>
+          <span id="schedulerStatusHeader" class="font-bold text-emerald-400">ACTIVO</span>
+        </div>
+
+        <button onclick="scanLocalOracle()" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg transition font-medium border border-slate-600">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+          <span class="hidden sm:inline">Escanear Oracle</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- NAVIGATION TABS -->
+  <nav class="bg-slate-850 border-b border-slate-700/60 px-6 overflow-x-auto">
+    <div class="max-w-7xl mx-auto flex items-center gap-1 py-1">
+      <button onclick="switchTab('dashboard')" id="tabBtn-dashboard" class="nav-tab active">
+        <i data-lucide="layout-dashboard" class="w-4 h-4"></i>
+        <span>Dashboard Preventivo</span>
+      </button>
+      <button onclick="switchTab('databases')" id="tabBtn-databases" class="nav-tab">
+        <i data-lucide="server" class="w-4 h-4"></i>
+        <span>Bases de Datos</span>
+        <span id="dbCountBadge" class="tab-badge">0</span>
+      </button>
+      <button onclick="switchTab('strategies')" id="tabBtn-strategies" class="nav-tab">
+        <i data-lucide="shield" class="w-4 h-4"></i>
+        <span>Estrategias (Qué-Cómo-Cuándo)</span>
+        <span id="stratCountBadge" class="tab-badge">0</span>
+      </button>
+      <button onclick="switchTab('rman')" id="tabBtn-rman" class="nav-tab">
+        <i data-lucide="terminal" class="w-4 h-4"></i>
+        <span>Constructor RMAN</span>
+      </button>
+      <button onclick="switchTab('scheduler')" id="tabBtn-scheduler" class="nav-tab">
+        <i data-lucide="calendar-clock" class="w-4 h-4"></i>
+        <span>Automatización</span>
+      </button>
+      <button onclick="switchTab('evidences')" id="tabBtn-evidences" class="nav-tab">
+        <i data-lucide="file-check-2" class="w-4 h-4"></i>
+        <span>Historial y Evidencias</span>
+        <span id="execCountBadge" class="tab-badge">0</span>
+      </button>
+      <button onclick="switchTab('alerts')" id="tabBtn-alerts" class="nav-tab">
+        <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+        <span>Alertas y Riesgos</span>
+        <span id="alertsCountBadge" class="tab-badge bg-amber-500/20 text-amber-400 border border-amber-500/30">0</span>
+      </button>
+      <button onclick="switchTab('sandbox')" id="tabBtn-sandbox" class="nav-tab bg-indigo-950/40 text-indigo-300 border-indigo-800/40 hover:bg-indigo-900/50">
+        <i data-lucide="flask-conical" class="w-4 h-4 text-indigo-400"></i>
+        <span>Laboratorio de Pruebas</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- MAIN CONTAINER -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6 space-y-6">
+
+    <!-- ========================================================================= -->
+    <!-- TAB 1: DASHBOARD PREVENTIVO -->
+    <!-- ========================================================================= -->
+    <section id="tab-dashboard" class="tab-content block space-y-6">
+
+      <!-- Dynamic Contextual Banners (NOARCHIVELOG / 24x7) -->
+      <div id="dashboardSpecialBanners" class="space-y-3"></div>
+
+      <!-- Quick KPI Cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- KPI 1 -->
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Salud Preventiva</p>
+            <h3 id="cardHealthScore" class="text-2xl font-bold font-mono text-emerald-400 mt-1">--%</h3>
+            <p class="text-xs text-slate-400 mt-1 flex items-center gap-1">
+              <i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-400"></i>
+              Control preventivo activo
+            </p>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+            <i data-lucide="shield-check" class="w-6 h-6"></i>
+          </div>
+        </div>
+
+        <!-- KPI 2 -->
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Estrategias Activas</p>
+            <h3 id="cardActiveStrategies" class="text-2xl font-bold font-mono text-white mt-1">0</h3>
+            <p id="cardTotalStrategiesSub" class="text-xs text-slate-400 mt-1">0 registradas en total</p>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+            <i data-lucide="layers" class="w-6 h-6"></i>
+          </div>
+        </div>
+
+        <!-- KPI 3 -->
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Alertas y Riesgos</p>
+            <h3 id="cardTotalAlerts" class="text-2xl font-bold font-mono text-amber-400 mt-1">0</h3>
+            <p id="cardAlertsBreakdown" class="text-xs text-slate-400 mt-1">0 advertencias · 0 recomend.</p>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+            <i data-lucide="alert-triangle" class="w-6 h-6"></i>
+          </div>
+        </div>
+
+        <!-- KPI 4 -->
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-4 flex items-center justify-between">
+          <div>
+            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Almacenamiento Destino</p>
+            <h3 id="cardDiskFree" class="text-2xl font-bold font-mono text-cyan-400 mt-1">-- GB</h3>
+            <p id="cardDiskPercentage" class="text-xs text-slate-400 mt-1">--% disponible</p>
+          </div>
+          <div class="w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+            <i data-lucide="hard-drive" class="w-6 h-6"></i>
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Actions Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div class="bg-gradient-to-br from-indigo-900/50 to-slate-800 border border-indigo-700/50 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-indigo-400 mb-2">
+              <i data-lucide="sparkles" class="w-5 h-5"></i>
+              <h4 class="font-bold text-base text-white">Generador Automático de Estrategias</h4>
+            </div>
+            <p class="text-xs text-slate-300">
+              Genere al instante la estrategia óptima para una <strong>Base 24/7</strong> o resuelva el <strong>Escenario 2 No Archive</strong> con las mejores prácticas Oracle MAA.
+            </p>
+          </div>
+          <button onclick="openAutoGenerateModal()" class="mt-4 w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition">
+            <i data-lucide="wand-2" class="w-4 h-4"></i>
+            Asistente Inteligente de Estrategia
+          </button>
+        </div>
+
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-amber-400 mb-2">
+              <i data-lucide="shield-alert" class="w-5 h-5"></i>
+              <h4 class="font-bold text-base text-white">Escenario 2: NOARCHIVELOG</h4>
+            </div>
+            <p class="text-xs text-slate-300">
+              Analice el impacto preventivo de operar en NOARCHIVELOG, revise restricciones de recuperación en frío y consulte el procedimiento de migración.
+            </p>
+          </div>
+          <button onclick="openArchiveLogGuideModal()" class="mt-4 w-full py-2 px-3 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition border border-slate-600">
+            <i data-lucide="book-open" class="w-4 h-4"></i>
+            Guía Técnica ARCHIVELOG vs NOARCHIVE
+          </button>
+        </div>
+
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center gap-2 text-emerald-400 mb-2">
+              <i data-lucide="flask-conical" class="w-5 h-5"></i>
+              <h4 class="font-bold text-base text-white">Laboratorio y Simulación</h4>
+            </div>
+            <p class="text-xs text-slate-300">
+              Cumpla los requisitos de demostración académica: ejecute simulaciones exitosas, errores controlados de NOARCHIVELOG y generación de evidencias.
+            </p>
+          </div>
+          <button onclick="switchTab('sandbox')" class="mt-4 w-full py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition">
+            <i data-lucide="play" class="w-4 h-4"></i>
+            Ejecutar Pruebas del Evaluador
+          </button>
+        </div>
+      </div>
+
+      <!-- Matriz de Control Preventivo (Requisito EIF402) -->
+      <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5">
+        <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-700">
+          <div>
+            <h3 class="font-bold text-white text-base flex items-center gap-2">
+              <i data-lucide="shield" class="w-5 h-5 text-indigo-400"></i>
+              Matriz de Control Preventivo (Dimensión de Disponibilidad e Integridad)
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">Mecanismos implementados para mitigar riesgos antes de que ocurran fallos en bases de datos Oracle</p>
+          </div>
+          <span class="text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded-full font-mono">
+            Control Preventivo Activo
+          </span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="text-slate-400 uppercase font-semibold border-b border-slate-700 bg-slate-900/50">
+              <tr>
+                <th class="py-2.5 px-3">Control Preventivo</th>
+                <th class="py-2.5 px-3">Dimensión de Riesgo</th>
+                <th class="py-2.5 px-3">Propósito y Mecanismo</th>
+                <th class="py-2.5 px-3 text-center">Estado del Control</th>
+              </tr>
+            </thead>
+            <tbody id="riskMatrixTableBody" class="divide-y divide-slate-700/60 font-medium">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Recent Executions Widget -->
+      <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5">
+        <div class="flex items-center justify-between mb-3">
+          <h3 class="font-bold text-white text-base flex items-center gap-2">
+            <i data-lucide="history" class="w-5 h-5 text-blue-400"></i>
+            Últimas Evidencias de Ejecución RMAN
+          </h3>
+          <button onclick="switchTab('evidences')" class="text-xs text-indigo-400 hover:text-indigo-300 font-medium flex items-center gap-1">
+            Ver todas <i data-lucide="chevron-right" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+        <div id="recentExecutionsWidget" class="space-y-2">
+          <!-- Rendered via JS -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 2: BASES DE DATOS -->
+    <!-- ========================================================================= -->
+    <section id="tab-databases" class="tab-content hidden space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-white">Inventario de Bases de Datos Oracle</h2>
+          <p class="text-xs text-slate-400">Gestione instancias locales y remotas, consulte el modo de archivador y explore tablespaces.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="scanLocalOracle()" class="px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition border border-slate-600">
+            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+            Detectar Local (XE)
+          </button>
+          <button onclick="openNewDatabaseModal()" class="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition shadow">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Registrar Base de Datos
+          </button>
+        </div>
+      </div>
+
+      <!-- Databases Cards Container -->
+      <div id="databasesContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <!-- Rendered via JS -->
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 3: ESTRATEGIAS (QUÉ - CÓMO - CUÁNDO) -->
+    <!-- ========================================================================= -->
+    <section id="tab-strategies" class="tab-content hidden space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-white">Gestor de Estrategias de Respaldo</h2>
+          <p class="text-xs text-slate-400">Implementación del modelo: <strong>QUÉ</strong> respaldar, <strong>CÓMO</strong> respaldarlo y <strong>CUÁNDO</strong> ejecutarlo.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button onclick="openAutoGenerateModal()" class="px-3.5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition shadow">
+            <i data-lucide="wand-2" class="w-4 h-4"></i>
+            Generar Automáticamente (24/7 o NoArchive)
+          </button>
+          <button onclick="openNewStrategyModal()" class="px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-semibold flex items-center gap-2 transition border border-slate-600">
+            <i data-lucide="plus" class="w-4 h-4"></i>
+            Crear Estrategia Manual
+          </button>
+        </div>
+      </div>
+
+      <!-- Strategies List -->
+      <div id="strategiesContainer" class="space-y-4">
+        <!-- Rendered via JS -->
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 4: CONSTRUCTOR Y VISOR RMAN -->
+    <!-- ========================================================================= -->
+    <section id="tab-rman" class="tab-content hidden space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-white">Constructor y Visualizador de Scripts RMAN</h2>
+          <p class="text-xs text-slate-400">Transformación algorítmica de la estrategia en sintaxis técnica RMAN con validación y aprobación.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <select id="rmanStrategySelector" onchange="loadRmanScriptForSelectedStrategy()" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
+            <!-- Populated via JS -->
+          </select>
+          <button onclick="approveCurrentStrategy()" id="btnApproveStrategy" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition">
+            <i data-lucide="check" class="w-3.5 h-3.5"></i>
+            Aprobar Estrategia
+          </button>
+          <button onclick="downloadCurrentRmanScript()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition border border-slate-600">
+            <i data-lucide="download" class="w-3.5 h-3.5"></i>
+            Descargar .rman
+          </button>
+        </div>
+      </div>
+
+      <!-- Warning & Recommendation Alerts for this script -->
+      <div id="rmanScriptAlertsContainer" class="space-y-2"></div>
+
+      <!-- Two column view: Script on Left, Explanation & Rationale on Right -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+        <!-- Code Window (7 cols) -->
+        <div class="lg:col-span-7 bg-slate-950 border border-slate-800 rounded-xl overflow-hidden shadow-2xl flex flex-col">
+          <div class="bg-slate-900 px-4 py-2.5 border-b border-slate-800 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <span class="w-3 h-3 rounded-full bg-red-500/80"></span>
+              <span class="w-3 h-3 rounded-full bg-amber-500/80"></span>
+              <span class="w-3 h-3 rounded-full bg-emerald-500/80"></span>
+              <span class="text-xs font-mono text-slate-400 ml-2" id="rmanFileName">backup_script.rman</span>
+            </div>
+            <span id="approvalBadge" class="text-xs px-2 py-0.5 rounded font-medium bg-amber-500/20 text-amber-400 border border-amber-500/30">
+              Pendiente de Aprobación
+            </span>
+          </div>
+          <div class="p-4 flex-1 overflow-x-auto">
+            <pre id="rmanScriptContent" class="font-mono text-xs text-sky-300 leading-relaxed whitespace-pre font-normal">// Seleccione una estrategia para visualizar su script...</pre>
+          </div>
+        </div>
+
+        <!-- Step-by-Step Explanation & Parameters (5 cols) -->
+        <div class="lg:col-span-5 space-y-4">
+          <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5">
+            <h3 class="font-bold text-white text-sm flex items-center gap-2 mb-3">
+              <i data-lucide="info" class="w-4 h-4 text-indigo-400"></i>
+              Explicación Técnica Paso a Paso
+            </h3>
+            <p class="text-xs text-slate-400 mb-3">
+              Desglose pedagógico de cada directiva generada para revisión del DBA:
+            </p>
+            <ul id="rmanExplanationList" class="space-y-2 text-xs text-slate-300">
+              <!-- Rendered via JS -->
+            </ul>
+          </div>
+
+          <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5">
+            <h3 class="font-bold text-white text-sm flex items-center gap-2 mb-2">
+              <i data-lucide="cpu" class="w-4 h-4 text-cyan-400"></i>
+              Scripts de Automatización Nativa
+            </h3>
+            <p class="text-xs text-slate-400 mb-3">
+              Exportación hacia planificadores nativos del sistema operativo:
+            </p>
+            <div class="space-y-2 text-xs">
+              <button onclick="showNativeScriptModal('windows')" class="w-full py-1.5 px-3 bg-slate-700 hover:bg-slate-600 rounded text-left flex items-center justify-between text-slate-200">
+                <span>Windows Task Scheduler (schtasks)</span>
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+              </button>
+              <button onclick="showNativeScriptModal('cron')" class="w-full py-1.5 px-3 bg-slate-700 hover:bg-slate-600 rounded text-left flex items-center justify-between text-slate-200">
+                <span>Linux Cron Expression</span>
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+              </button>
+              <button onclick="showNativeScriptModal('oracle')" class="w-full py-1.5 px-3 bg-slate-700 hover:bg-slate-600 rounded text-left flex items-center justify-between text-slate-200">
+                <span>Oracle DBMS_SCHEDULER (PL/SQL)</span>
+                <i data-lucide="external-link" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 5: AUTOMATIZACIÓN (SCHEDULER) -->
+    <!-- ========================================================================= -->
+    <section id="tab-scheduler" class="tab-content hidden space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-white">Motor de Automatización y Planificación</h2>
+          <p class="text-xs text-slate-400">Relación auditable: <strong>Estrategia → Programación → Script RMAN → Ejecución</strong>.</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-400">Motor Automático:</span>
+            <button onclick="toggleSchedulerDaemon()" id="btnToggleScheduler" class="px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white">
+              <i data-lucide="power" class="w-3.5 h-3.5"></i>
+              <span id="btnToggleSchedulerText">ACTIVO</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Schedule Table -->
+      <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5">
+        <h3 class="font-bold text-white text-base mb-3 flex items-center gap-2">
+          <i data-lucide="calendar" class="w-5 h-5 text-indigo-400"></i>
+          Próximas Ejecuciones Planificadas
+        </h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="text-slate-400 uppercase font-semibold border-b border-slate-700 bg-slate-900/50">
+              <tr>
+                <th class="py-2.5 px-3">Estrategia</th>
+                <th class="py-2.5 px-3">Prioridad</th>
+                <th class="py-2.5 px-3">Frecuencia</th>
+                <th class="py-2.5 px-3">Hora Programada</th>
+                <th class="py-2.5 px-3">Próxima Ejecución Estimada</th>
+                <th class="py-2.5 px-3">Aprobación DBA</th>
+                <th class="py-2.5 px-3 text-right">Acción</th>
+              </tr>
+            </thead>
+            <tbody id="schedulerTableBody" class="divide-y divide-slate-700/60 font-medium">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 6: CENTRO DE EVIDENCIAS E HISTORIAL -->
+    <!-- ========================================================================= -->
+    <section id="tab-evidences" class="tab-content hidden space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-white">Centro de Evidencias e Historial de Ejecuciones</h2>
+          <p class="text-xs text-slate-400">Registro auditable inmutable de cada respaldo: logs RMAN, archivos creados, validación de integridad.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <select id="evidenceFilterResult" onchange="filterEvidences()" class="bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 text-xs text-white">
+            <option value="ALL">Todos los Resultados</option>
+            <option value="EXITOSO">Exitosos</option>
+            <option value="CON_ADVERTENCIAS">Con Advertencias</option>
+            <option value="FALLIDO">Fallidos</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Evidences Table -->
+      <div class="bg-slate-800/80 border border-slate-700 rounded-xl overflow-hidden">
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="text-slate-400 uppercase font-semibold border-b border-slate-700 bg-slate-900/60">
+              <tr>
+                <th class="py-3 px-4">Fecha y Hora</th>
+                <th class="py-3 px-4">Estrategia</th>
+                <th class="py-3 px-4">Base de Datos</th>
+                <th class="py-3 px-4">Tipo de Respaldo</th>
+                <th class="py-3 px-4">Duración</th>
+                <th class="py-3 px-4">Tamaño</th>
+                <th class="py-3 px-4">Resultado</th>
+                <th class="py-3 px-4 text-right">Evidencia</th>
+              </tr>
+            </thead>
+            <tbody id="evidencesTableBody" class="divide-y divide-slate-700/60 font-medium">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 7: ALERTAS Y CONTROL PREVENTIVO -->
+    <!-- ========================================================================= -->
+    <section id="tab-alerts" class="tab-content hidden space-y-6">
+      <div class="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 class="text-xl font-bold text-white">Panel de Alertas y Diagnóstico Preventivo</h2>
+          <p class="text-xs text-slate-400">Detección proactiva de condiciones anómalas: advertencias NOARCHIVELOG, desatención, espacio y fallos.</p>
+        </div>
+        <button onclick="refreshAlerts()" class="px-3 py-1.5 bg-slate-700 hover:bg-slate-600 text-white rounded-lg text-xs font-medium flex items-center gap-1.5 transition border border-slate-600">
+          <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+          Reevaluar Controles
+        </button>
+      </div>
+
+      <!-- Alerts List -->
+      <div id="alertsContainer" class="space-y-3">
+        <!-- Rendered via JS -->
+      </div>
+    </section>
+
+    <!-- ========================================================================= -->
+    <!-- TAB 8: LABORATORIO DE PRUEBAS Y SIMULADOR (DEFENSA DEL PROYECTO) -->
+    <!-- ========================================================================= -->
+    <section id="tab-sandbox" class="tab-content hidden space-y-6">
+      <div class="bg-gradient-to-r from-indigo-950 via-slate-900 to-slate-900 border border-indigo-700/60 rounded-xl p-6">
+        <div class="flex items-center gap-3 mb-2">
+          <div class="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-white">
+            <i data-lucide="flask-conical" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h2 class="text-xl font-bold text-white">Laboratorio de Pruebas y Evidencias de Evaluación</h2>
+            <p class="text-xs text-indigo-300">Entorno para demostrar los 6 escenarios requeridos en la especificación académica (Sección 4 y 14 del PDF).</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 6 Requirement Cards -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+
+        <!-- Test 1: Ejecución Exitosa -->
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">Prueba Requerida 1</span>
+            <h4 class="font-bold text-white text-base mt-2">Ejecución Exitosa con Validación</h4>
+            <p class="text-xs text-slate-300 mt-1">
+              Ejecuta un respaldo completo/incremental, valida bloques físicos con <code>RESTORE DATABASE VALIDATE</code> y genera archivos en disco.
+            </p>
+          </div>
+          <button onclick="runTestScenario('SUCCESS')" class="mt-4 w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition">
+            <i data-lucide="play" class="w-4 h-4"></i>
+            Ejecutar Prueba Exitosa
+          </button>
+        </div>
+
+        <!-- Test 2: Simulación de Error NOARCHIVELOG (Escenario 2) -->
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-800">Prueba Requerida 2</span>
+            <h4 class="font-bold text-white text-base mt-2">Simulación Controlada: Error NOARCHIVELOG</h4>
+            <p class="text-xs text-slate-300 mt-1">
+              Simula intento de backup online con base abierta en NOARCHIVELOG (<code>RMAN-06149: cannot BACKUP DATABASE in NOARCHIVELOG mode</code>) para evidenciar detección preventiva.
+            </p>
+          </div>
+          <button onclick="runTestScenario('ERROR_NOARCHIVELOG')" class="mt-4 w-full py-2 bg-red-600 hover:bg-red-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition">
+            <i data-lucide="alert-octagon" class="w-4 h-4"></i>
+            Simular Error NOARCHIVELOG
+          </button>
+        </div>
+
+        <!-- Test 3: Simulación de Disco Lleno -->
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-red-950 text-red-400 border border-red-800">Prueba Requerida 3</span>
+            <h4 class="font-bold text-white text-base mt-2">Simulación Controlada: Disco Lleno</h4>
+            <p class="text-xs text-slate-300 mt-1">
+              Simula aborto de respaldo por falta de espacio en destino (<code>ORA-19504: failed to create file / OSD-04008</code>), disparando alerta de Disponibilidad.
+            </p>
+          </div>
+          <button onclick="runTestScenario('ERROR_DISK_FULL')" class="mt-4 w-full py-2 bg-rose-600 hover:bg-rose-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition">
+            <i data-lucide="hard-drive" class="w-4 h-4"></i>
+            Simular Fallo Disco Lleno
+          </button>
+        </div>
+
+        <!-- Test 4: Con Advertencia -->
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-800">Prueba Requerida 4</span>
+            <h4 class="font-bold text-white text-base mt-2">Ejecución con Advertencias</h4>
+            <p class="text-xs text-slate-300 mt-1">
+              Simula respaldo que concluye pero con advertencias del catálogo RMAN (<code>RMAN-06497: WARNING: redundant backup ignored</code>).
+            </p>
+          </div>
+          <button onclick="runTestScenario('WARNING_OBSOLETE')" class="mt-4 w-full py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition">
+            <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+            Simular Con Advertencias
+          </button>
+        </div>
+
+        <!-- Test 5: Escenario 2 Consistente Cold Backup -->
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-blue-950 text-blue-400 border border-blue-800">Prueba Requerida 5</span>
+            <h4 class="font-bold text-white text-base mt-2">Escenario 2 No Archive: Cold Backup Consistente</h4>
+            <p class="text-xs text-slate-300 mt-1">
+              Ejecuta el flujo correcto para NOARCHIVELOG: Shutdown Immediate -> Startup Mount -> Backup Database -> Open Database.
+            </p>
+          </div>
+          <button onclick="runEscenario2ColdBackup()" class="mt-4 w-full py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition">
+            <i data-lucide="snowflake" class="w-4 h-4"></i>
+            Ejecutar Cold Backup Escenario 2
+          </button>
+        </div>
+
+        <!-- Test 6: Migración 24/7 a ARCHIVELOG -->
+        <div class="bg-slate-800/80 border border-slate-700 rounded-xl p-5 flex flex-col justify-between">
+          <div>
+            <span class="text-xs font-bold px-2 py-0.5 rounded bg-purple-950 text-purple-400 border border-purple-800">Prueba Requerida 6</span>
+            <h4 class="font-bold text-white text-base mt-2">Transformación 24/7: Migración ARCHIVELOG</h4>
+            <p class="text-xs text-slate-300 mt-1">
+              Consulte el procedimiento oficial DBA para habilitar modo ARCHIVELOG en la base local XE y permitir respaldos en caliente 24/7.
+            </p>
+          </div>
+          <button onclick="openArchiveLogGuideModal()" class="mt-4 w-full py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition">
+            <i data-lucide="arrow-right-left" class="w-4 h-4"></i>
+            Ver Procedimiento DBA 24/7
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- MODALS -->
+  <div id="modalContainer" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div id="modalContent" class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto p-6 shadow-2xl">
+      <!-- Injected dynamically -->
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-24 opacity-0 transition-all duration-300 flex items-center gap-3 px-4 py-3 rounded-xl shadow-2xl text-xs font-semibold">
+    <i id="toastIcon" data-lucide="check" class="w-5 h-5"></i>
+    <span id="toastMessage">Operación realizada con éxito</span>
+  </div>
+
+  <footer class="bg-slate-900 border-t border-slate-800 text-slate-500 text-xs py-4 px-6 text-center">
+    Desarrollado para el curso EIF402: Administración de Bases de Datos · Universidad Nacional (UNA) · II Ciclo 2026 · Profesor: Msc. Johnny Villalobos Murillo
+  </footer>
+
+  <!-- Scripts -->
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+# ==============================================================================
+# SCRIPT RMAN GENERADO AUTOMÁTICAMENTE POR GESTOR DE ESTRATEGIAS ORACLE
+# Base de Datos : FINDB_PROD (SID: FINPRD)
+# Modo Archivador: ARCHIVELOG
+# Estrategia     : Estrategia 24/7 Máxima Disponibilidad (ARCHIVELOG)
+# Tipo Respaldo  : INCREMENTAL_NIVEL_1_ACUMULATIVO
+# Prioridad      : ALTA
+# Destino        : C:\Users\maaro\Documents\Proyectos\GestiondeRespaldoAuto\backups\FINDB_PROD
+# Generado el    : 2026-10-01T03:57:25.677Z
+# ==============================================================================
+
+RUN {
+  ALLOCATE CHANNEL c1 DEVICE TYPE DISK FORMAT 'C:/Users/maaro/Documents/Proyectos/GestiondeRespaldoAuto/backups/FINDB_PROD/%d_BACKUP_24X7_FINPRD_%T_%s_%p.bkp';
+  ALLOCATE CHANNEL c2 DEVICE TYPE DISK FORMAT 'C:/Users/maaro/Documents/Proyectos/GestiondeRespaldoAuto/backups/FINDB_PROD/%d_BACKUP_24X7_FINPRD_%T_%s_%p.bkp';
+  BACKUP AS COMPRESSED BACKUPSET INCREMENTAL LEVEL 1 CUMULATIVE TAG 'BACKUP_24X7_FINPRD' DATABASE;
+  SQL 'ALTER SYSTEM ARCHIVE LOG CURRENT';
+  BACKUP AS COMPRESSED BACKUPSET ARCHIVELOG ALL DELETE ALL INPUT TAG 'BACKUP_24X7_FINPRD_ARCH';
+  BACKUP CURRENT CONTROLFILE AND SPFILE TAG 'BACKUP_24X7_FINPRD_CTL';
+  # Verificación proactiva de integridad de bloques
+  RESTORE DATABASE VALIDATE;
+  RELEASE CHANNEL c1;
+  RELEASE CHANNEL c2;
+}
+
+# ------------------------------------------------------------------------------
+# MANTENIMIENTO DEL REPOSITORIO Y PURGA DE RESPALDOS EXPIRADOS
+# ------------------------------------------------------------------------------
+CROSSCHECK BACKUP;
+CROSSCHECK ARCHIVELOG ALL;
+DELETE NOPROMPT EXPIRED BACKUP;
+DELETE NOPROMPT OBSOLETE;

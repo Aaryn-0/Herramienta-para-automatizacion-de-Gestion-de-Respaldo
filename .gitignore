@@ -1,0 +1,12 @@
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+*.log
+data/db.json.tmp
+backups/**/*.bkp
+backups/**/*.ctl
+backups/**/*.arc
+!backups/**/.gitkeep
+!scripts/**/.gitkeep
